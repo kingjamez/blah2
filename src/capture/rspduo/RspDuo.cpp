@@ -42,12 +42,12 @@ IqData *buffer1;
 IqData *buffer2;
 
 // constructor
-RspDuo::RspDuo(std::string _type, uint32_t _fc, 
+RspDuo::RspDuo(std::string _type, uint32_t _fc,
   uint32_t _fs, std::string _path, bool *_saveIq,
-  int _agcSetPoint, int _bandwidthNumber, 
-  int _gainReductionA, int _gainReductionB, 
+  int _agcSetPoint, int _bandwidthNumber,
+  int _gainReductionA, int _gainReductionB,
   int _lnaState,
-  bool _dabNotch, bool _rfNotch)
+  bool _dabNotch, bool _rfNotch, std::string _serialNumber)
   : Source(_type, _fc, _fs, _path, _saveIq)
 {
   std::unordered_map<int, int> decimationMap = {
@@ -88,6 +88,7 @@ RspDuo::RspDuo(std::string _type, uint32_t _fc,
   lna_state_nr = _lnaState;
   rf_notch_fg = _rfNotch;
   dab_notch_fg = _dabNotch;
+  serialNumber = _serialNumber;
 }
 
 void RspDuo::start()
@@ -302,10 +303,12 @@ void RspDuo::get_device()
     exit(1);
   }
 
-  // pick first RSPduo
+  // pick RSPduo by serial number, or first found if serial is empty
   for (i = 0; i < ndev; i++)
   {
-    if (devs[i].hwVer == SDRPLAY_RSPduo_ID)
+    if (devs[i].hwVer != SDRPLAY_RSPduo_ID)
+      continue;
+    if (serialNumber.empty() || serialNumber == std::string(devs[i].SerNo))
     {
       chosenIdx = i;
       break;
@@ -314,7 +317,11 @@ void RspDuo::get_device()
 
   if (i == ndev)
   {
-    std::cerr << "Error: Could not find RSPduo device to open" << std::endl;
+    if (serialNumber.empty())
+      std::cerr << "Error: Could not find RSPduo device to open" << std::endl;
+    else
+      std::cerr << "Error: Could not find RSPduo with serial "
+                << serialNumber << std::endl;
     sdrplay_api_UnlockDeviceApi();
     sdrplay_api_Close();
     exit(1);

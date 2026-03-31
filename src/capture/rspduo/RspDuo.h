@@ -48,6 +48,8 @@ private:
   bool dab_notch_fg;
   /// @brief USB bulk transfer mode.
   bool usb_bulk_fg;
+  /// @brief Serial number to select a specific device ("" = first found).
+  std::string serialNumber;
   /// @brief SDRplay IF bandwidth enum.
   sdrplay_api_Bw_MHzT bwType;
   /// @brief SDRplay IF mode enum.
@@ -160,10 +162,11 @@ public:
   /// @param fc Center frequency (Hz).
   /// @param path Path to save IQ data.
   /// @return The object.
-  RspDuo(std::string type, uint32_t fc, uint32_t fs, 
-    std::string path, bool *saveIq, int agcSetPoint, 
-    int bandwidthNumber, int gainReductionA, int gainReductionB, 
-    int lnaState, bool dabNotch, bool rfNotch);
+  RspDuo(std::string type, uint32_t fc, uint32_t fs,
+    std::string path, bool *saveIq, int agcSetPoint,
+    int bandwidthNumber, int gainReductionA, int gainReductionB,
+    int lnaState, bool dabNotch, bool rfNotch,
+    std::string serialNumber = "");
 
   /// @brief Implement capture function on RSPduo.
   /// @param buffer1 Pointer to reference buffer.

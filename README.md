@@ -62,6 +62,27 @@ sudo docker compose up -d
 
 The radar processing output is available on [http://localhost:49152](http://localhost:49152).
 
+## Multi-Node Single-Host Setup
+
+Run 3 blah2 instances on one machine, each with a dedicated SDR tuned to a different illuminator, feeding a single [3lips](https://github.com/30hours/3lips) instance for multi-static localisation.
+
+```bash
+mkdir -p /opt/blah2/save/node{1,2,3}
+sudo docker compose --profile multi up -d --build
+```
+
+| Node | API port | Web UI |
+|---|---|---|
+| Node 1 | 3000 | http://localhost:49152 |
+| Node 2 | 3010 | http://localhost:49153 |
+| Node 3 | 3020 | http://localhost:49154 |
+
+Edit the per-node config files with your serial numbers and frequencies before starting:
+- **RSPDuo**: set `device.serial` in `config/config-rspduo-node{1,2,3}.yml` (serial printed in container logs on first run).
+- **B210**: set `device.address` to `type=b200,serial=XXXXXXXX` (find serials with `uhd_find_devices`).
+
+To switch from RSPDuo to B210 configs, update the volume source paths in `docker-compose.yml` (under the `multi` profile services) to reference the `config-b210-node*.yml` files.
+
 ## Documentation
 
 - See `doxygen` pages hosted at [http://doc.30hours.dev/blah2](http://doc.30hours.dev/blah2).

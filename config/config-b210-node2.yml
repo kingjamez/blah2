@@ -1,0 +1,85 @@
+capture:
+  fs: 2000000
+  fc: 177500000
+  device:
+    type: "Usrp"
+    address: "type=b200,serial=B210_SERIAL_2"
+    subdev: "A:A A:B"
+    antenna: ["RX2", "RX2"]
+    gain: [20.0, 20.0]
+  replay:
+    state: false
+    loop: true
+    file: '/blah2/replay/file.usrp'
+
+process:
+  data:
+    cpi: 0.75
+    buffer: 2
+    overlap: 0
+  ambiguity:
+    delayMin: -10
+    delayMax: 400
+    dopplerMin: -200
+    dopplerMax: 200
+  clutter:
+    enable: true
+    delayMin: -10
+    delayMax: 400
+  detection:
+    enable: true
+    pfa: 0.00001
+    nGuard: 2
+    nTrain: 6
+    minDelay: 5
+    minDoppler: 15
+    nCentroid: 6
+  tracker:
+    enable: false
+    initiate:
+      M: 3
+      N: 5
+      maxAcc: 10
+    delete: 10
+    smooth: "none"
+
+network:
+  ip: 0.0.0.0
+  ports:
+    api: 3010
+    map: 3011
+    detection: 3012
+    track: 3013
+    timestamp: 4010
+    timing: 4011
+    iqdata: 4012
+    config: 4013
+
+truth:
+  adsb:
+    enabled: true
+    tar1090: 'adsb.30hours.dev'
+    adsb2dd: 'adsb2dd.30hours.dev'
+  ais:
+    enabled: false
+    ip: 0.0.0.0
+    port: 30001
+
+location:
+  rx:
+    latitude: -34.9286
+    longitude: 138.5999
+    altitude: 50
+    name: "Adelaide"
+  tx:
+    latitude: -34.9810
+    longitude: 138.7081
+    altitude: 750
+    name: "Mount Lofty"
+
+save:
+  iq: true
+  map: false
+  detection: false
+  timing: false
+  path: "/blah2/save/"
