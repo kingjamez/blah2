@@ -9,6 +9,14 @@ include(CTest)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror")
 
+# Dragon Labs CR-8 (optional — only available when libdlcr is installed on the system)
+find_library(DLCR_LIBRARY dlcr)
+if(DLCR_LIBRARY)
+  message(STATUS "libdlcr found: ${DLCR_LIBRARY} — CR-8 support enabled")
+else()
+  message(STATUS "libdlcr not found — CR-8 support disabled (use Dockerfile.dev to enable)")
+endif()
+
 find_package(Threads REQUIRED)
 find_package(asio  REQUIRED)
 find_path(RAPIDJSON_INCLUDE_DIRS "rapidjson/allocators.h")
@@ -18,7 +26,12 @@ find_package(Armadillo CONFIG REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 
 set(CMAKE_PREFIX_PATH "/opt/uhd" ${CMAKE_PREFIX_PATH})
-find_package(UHD "4.8.0.0" CONFIG REQUIRED)
+find_package(UHD "4.8.0.0" CONFIG)
+if(UHD_FOUND)
+  message(STATUS "UHD found: ${UHD_VERSION} — USRP support enabled")
+else()
+  message(STATUS "UHD not found — USRP support disabled (install libuhd-dev to enable)")
+endif()
 
 set(PROJECT_ROOT "${PROJECT_SOURCE_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_ROOT}/bin")
@@ -31,7 +44,10 @@ message("Binary path: ${PROJECT_BINARY_DIR}")
 message("Binary test path: ${PROJECT_BINARY_TEST_DIR}")
 
 # include from top-level src dir
-include_directories(src ${UHD_INCLUDE_DIRS})
+include_directories(src)
+if(UHD_FOUND)
+  include_directories(${UHD_INCLUDE_DIRS})
+endif()
 
 # TODO: create FindSdrplay.cmake for this
 add_library(sdrplay /usr/local/include/sdrplay_api.h)
@@ -39,12 +55,11 @@ set_target_properties(sdrplay PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(sdrplay PUBLIC /usr/local/lib/libsdrplay_api.so.3.15)
 
 # TODO: Move to separate src/CMakeLists.txt
-add_executable(blah2
+set(BLAH2_SOURCES
   src/blah2.cpp
   src/capture/Capture.cpp
   src/capture/Source.cpp
   src/capture/rspduo/RspDuo.cpp
-  src/capture/usrp/Usrp.cpp
   src/capture/hackrf/HackRf.cpp
   src/capture/kraken/Kraken.cpp
   src/process/ambiguity/Ambiguity.cpp
@@ -62,19 +77,37 @@ add_executable(blah2
   src/data/Track.cpp
   src/data/meta/Timing.cpp
 )
+if(UHD_FOUND)
+  list(APPEND BLAH2_SOURCES src/capture/usrp/Usrp.cpp)
+endif()
+if(DLCR_LIBRARY)
+  list(APPEND BLAH2_SOURCES src/capture/dlcr/Dlcr.cpp)
+endif()
 
-target_link_libraries(blah2 PRIVATE 
+add_executable(blah2 ${BLAH2_SOURCES})
+
+target_link_libraries(blah2 PRIVATE
   Threads::Threads
   asio::asio
   ryml::ryml
   httplib::httplib
   armadillo
-  ${UHD_LIBRARIES}
   fftw3
   fftw3_threads
   sdrplay
   hackrf
   rtlsdr
+)
+if(UHD_FOUND)
+  target_link_libraries(blah2 PRIVATE ${UHD_LIBRARIES})
+  target_compile_definitions(blah2 PRIVATE HAVE_UHD)
+endif()
+if(DLCR_LIBRARY)
+  target_link_libraries(blah2 PRIVATE ${DLCR_LIBRARY})
+  target_compile_definitions(blah2 PRIVATE HAVE_DLCR)
+endif()
+target_compile_options(blah2 PRIVATE
+  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O3 -march=native -ffast-math>
 )
 target_include_directories(blah2 PRIVATE RAPIDJSON_INCLUDE_DIRS "rapidjson/allocators.h")
 
@@ -86,12 +119,15 @@ add_executable(testAmbiguity
   src/process/ambiguity/Ambiguity.cpp
   src/process/meta/HammingNumber.cpp
 )
-target_link_libraries(testAmbiguity PRIVATE 
-  Catch2::Catch2WithMain 
-  fftw3 
+target_link_libraries(testAmbiguity PRIVATE
+  Catch2::Catch2WithMain
+  fftw3
   fftw3_threads
 )
-set_target_properties(testAmbiguity PROPERTIES 
+target_compile_options(testAmbiguity PRIVATE
+  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O3 -march=native -ffast-math>
+)
+set_target_properties(testAmbiguity PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_TEST_UNIT_DIR}")
 
 add_executable(testTracker

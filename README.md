@@ -19,6 +19,7 @@ A real-time radar which can support various SDR platforms. See a live instance a
 - 2x [HackRF](https://greatscottgadgets.com/hackrf/) with clock synchronisation and hardware trigger.
 - 2x [RTL-SDR](https://www.rtl-sdr.com/) with clock synchronisation.
 - [KrakenSDR](https://www.krakenrf.com/) with 2x channels only.
+- [Dragon Labs CR-8](https://dragnlabs.com) 8-channel coherent receiver (requires `libdlcr` installed on host).
 
 ## Services
 
@@ -61,6 +62,38 @@ sudo docker compose up -d
 ```
 
 The radar processing output is available on [http://localhost:49152](http://localhost:49152).
+
+## Dragon Labs CR-8 Install
+
+The CR-8 requires `libdlcr` to be installed on the host before building the Docker image.
+
+**1. Build and install libdlcr from the CR-8 driver source:**
+
+```bash
+cd /path/to/dlcr_host_v0
+mkdir build && cd build
+cmake .. && make
+sudo make install   # installs libdlcr.so to /usr/local/lib
+sudo ldconfig
+```
+
+**2. Copy the built library into the blah2 tree:**
+
+```bash
+cd /opt/blah2
+mkdir -p lib/dlcr
+cp /usr/local/lib/libdlcr.so lib/dlcr/
+```
+
+**3. Edit `config/config-dlcr.yml`** with your frequency and location, then:
+
+```bash
+sudo docker compose --profile cr8 up -d --build
+```
+
+The radar display is available at [http://localhost:49152](http://localhost:49152).
+
+> **Note:** The CR-8 has a fixed 25 MHz sample rate — `fs` in the config must be set to `25000000`.
 
 ## Documentation
 

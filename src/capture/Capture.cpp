@@ -1,14 +1,19 @@
 #include "Capture.h"
 #include "rspduo/RspDuo.h"
+#ifdef HAVE_UHD
 #include "usrp/Usrp.h"
+#endif
 #include "hackrf/HackRf.h"
 #include "kraken/Kraken.h"
+#ifdef HAVE_DLCR
+#include "dlcr/Dlcr.h"
+#endif
 #include <iostream>
 #include <thread>
 #include <httplib.h>
 
 // constants
-const std::string Capture::VALID_TYPE[4] = {"RspDuo", "Usrp", "HackRF", "Kraken"};
+const std::string Capture::VALID_TYPE[5] = {"RspDuo", "Usrp", "HackRF", "Kraken", "Dlcr"};
 
 // constructor
 Capture::Capture(std::string _type, uint32_t _fs, uint32_t _fc, std::string _path)
@@ -72,6 +77,7 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
     {
         int agcSetPoint, bandwidthNumber, gainReductionA, gainReductionB, lnaState;
         bool dabNotch, rfNotch;
+        std::string serial = "";
         config["agcSetPoint"] >> agcSetPoint;
         config["bandwidthNumber"] >> bandwidthNumber;
         config["gainReduction"][0] >> gainReductionA;
@@ -79,10 +85,13 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
         config["lnaState"] >> lnaState;
         config["dabNotch"] >> dabNotch;
         config["rfNotch"] >> rfNotch;
+        if (config.has_child("serial"))
+            config["serial"] >> serial;
         return std::make_unique<RspDuo>(type, fc, fs, path, &saveIq,
           agcSetPoint, bandwidthNumber, gainReductionA, gainReductionB, lnaState,
-          dabNotch, rfNotch);
+          dabNotch, rfNotch, serial);
     }
+#ifdef HAVE_UHD
     // Usrp
     else if (type == VALID_TYPE[1])
     {
@@ -101,9 +110,10 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
         gain.push_back(_gain);
         config["gain"][1] >> _gain;
         gain.push_back(_gain);
-        return std::make_unique<Usrp>(type, fc, fs, path, &saveIq, 
+        return std::make_unique<Usrp>(type, fc, fs, path, &saveIq,
           address, subdev, antenna, gain);
     }
+#endif
     // HackRF
     else if (type == VALID_TYPE[2])
     {
@@ -149,6 +159,25 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
       }
       return std::make_unique<Kraken>(type, fc, fs, path, &saveIq, gain);
     }
+#ifdef HAVE_DLCR
+    // Dragon Labs CR-8
+    else if (type == VALID_TYPE[4])
+    {
+      std::string serial;
+      int refChannel, surChannel, gainLna, gainMixer, gainVga;
+      bool externalClock;
+      config["serial"] >> serial;
+      config["ref_channel"] >> refChannel;
+      config["sur_channel"] >> surChannel;
+      config["gain_lna"] >> gainLna;
+      config["gain_mixer"] >> gainMixer;
+      config["gain_vga"] >> gainVga;
+      config["external_clock"] >> externalClock;
+      return std::make_unique<Dlcr>(type, fc, fs, path, &saveIq,
+        serial, refChannel, surChannel, gainLna, gainMixer, gainVga,
+        externalClock);
+    }
+#endif
     // handle unknown type
     std::cerr << "Error: Source type does not exist." << std::endl;
     return nullptr;
