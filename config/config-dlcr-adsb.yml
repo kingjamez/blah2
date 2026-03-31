@@ -1,0 +1,95 @@
+capture:
+  # The CR-8 has a fixed 25 MHz sample rate; this must be 25000000.
+  fs: 25000000
+  fc:                                     # Center frequency (Hz) - e.g. 204640000
+  device:
+    type: "Dlcr"
+    # Serial number from dlcr_info (leave empty for first device found)
+    serial: ""
+    # Zero-based channel indices (0-7) for reference and surveillance
+    ref_channel: 0
+    sur_channel: 1
+    # Three-stage gain control
+    gain_lna: 9                           # LNA gain: 0-14
+    gain_mixer: 10                        # Mixer gain: 0-15
+    gain_vga: 10                          # VGA gain: 0-15
+    # Set true to lock to an external 10 MHz reference clock
+    external_clock: false
+  replay:
+    state: false
+    loop: true
+    file: '/blah2/replay/file.dlcr'
+
+process:
+  data:
+    cpi: 0.5
+    buffer: 1.5
+    overlap: 0
+  ambiguity:
+    delayMin: -10
+    delayMax: 400
+    dopplerMin: -200
+    dopplerMax: 200
+  clutter:
+    enable: true
+    delayMin: -10
+    delayMax: 400
+  detection:
+    enable: true
+    pfa: 0.00001
+    nGuard: 2
+    nTrain: 6
+    minDelay: 5
+    minDoppler: 15
+    nCentroid: 6
+  tracker:
+    enable: true
+    initiate:
+      M: 3
+      N: 5
+      maxAcc: 10
+    delete: 10
+    smooth: "none"
+
+network:
+  ip: 0.0.0.0
+  ports:
+    api: 3000
+    map: 3001
+    detection: 3002
+    track: 3003
+    timestamp: 4000
+    timing: 4001
+    iqdata: 4002
+    config: 4003
+
+truth:
+  adsb:
+    enabled: true
+    # tar1090 IP address or hostname - NO http:// prefix
+    tar1090: 'adsb.30hours.dev'
+    # adsb2dd address - must use localhost:port, NO http:// prefix, IP address will not work
+    adsb2dd: 'adsb2dd.30hours.dev'
+  ais:
+    enabled: false
+    ip: 0.0.0.0
+    port: 30001
+
+location:
+  rx:
+    latitude: -34.9286
+    longitude: 138.5999
+    altitude: 50
+    name: "Adelaide"
+  tx:
+    latitude: -34.9810
+    longitude: 138.7081
+    altitude: 750
+    name: "Mount Lofty"
+
+save:
+  iq: false
+  map: false
+  detection: false
+  timing: false
+  path: "/blah2/save/"
