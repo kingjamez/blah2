@@ -9,7 +9,6 @@ var range_y = [];
 var urlTimestamp;
 var urlDetection;
 var urlAdsb;
-var urlAdsbLink;
 var urlConfig;
 if (isLocalHost) {
   urlTimestamp = '//' + host + ':3000/api/timestamp';
@@ -27,9 +26,9 @@ if (isLocalHost) {
   urlMap = '//' + host + urlMap;
 }
 if (isLocalHost) {
-  urlAdsbLink = '//' + host + ':3000/api/adsb2dd';
+  urlAdsb = '//' + host + ':3000/api/adsb';
 } else {
-  urlAdsbLink = '//' + host + '/api/adsb2dd';
+  urlAdsb = '//' + host + '/api/adsb';
 }
 if (isLocalHost) {
   urlConfig = '//' + host + ':3000/api/config';
@@ -43,13 +42,6 @@ $.getJSON(urlConfig, function () { })
 .done(function (data_config) {
   if (data_config.truth.adsb.enabled === true) {
     isTruth = true;
-    $.getJSON(urlAdsbLink, function () { })
-    .done(function (data) {
-      urlAdsb = data.url;
-      if (!is_localhost(new URL(urlAdsb).hostname)) {
-        urlAdsb = urlAdsb.replace(/^http:/, 'https:');
-      }
-    })
   }
 });
 

@@ -3,6 +3,7 @@ const net = require("net");
 const fs = require('fs');
 const yaml = require('js-yaml');
 const dns = require('dns');
+const http_client = require('http');
 
 // parse config file
 var config;
@@ -27,12 +28,12 @@ var track = '';
 var timestamp = '';
 var timing = '';
 var iqdata = '';
-var data_map;
-var data_detection;
-var data_tracker;
-var data_timestamp;
-var data_timing;
-var data_iqdata;
+var data_map = '';
+var data_detection = '';
+var data_tracker = '';
+var data_timestamp = '';
+var data_timing = '';
+var data_iqdata = '';
 var capture = false;
 
 // api server
@@ -90,6 +91,47 @@ app.get('/api/adsb2dd', (req, res) => {
   else {
     res.status(400).end();
   }
+});
+
+// --- ADS-B truth data proxy ---
+// Fetches delay-Doppler data from the adsb2dd service server-side so that
+// the browser only needs to talk to blah2 (no CORS / Docker networking issues).
+var adsbData = {};
+
+if (config.truth && config.truth.adsb && config.truth.adsb.enabled === true) {
+  const adsb2dd_url = "http://" + config.truth.adsb.adsb2dd + "/api/dd" +
+    "?rx=" + config.location.rx.latitude + "," +
+    config.location.rx.longitude + "," +
+    config.location.rx.altitude +
+    "&tx=" + config.location.tx.latitude + "," +
+    config.location.tx.longitude + "," +
+    config.location.tx.altitude +
+    "&fc=" + (config.capture.fc / 1000000) +
+    "&server=" + "http://" + config.truth.adsb.tar1090;
+
+  console.log("ADS-B truth enabled, polling: " + adsb2dd_url);
+
+  // Poll adsb2dd every 1 second (matches its internal update rate)
+  setInterval(function () {
+    http_client.get(adsb2dd_url, function (res) {
+      var body = '';
+      res.on('data', function (chunk) { body += chunk; });
+      res.on('end', function () {
+        try {
+          adsbData = JSON.parse(body);
+        } catch (e) {
+          // ignore JSON parse errors from partial/bad responses
+        }
+      });
+    }).on('error', function () {
+      // silently ignore connection errors (adsb2dd may not be running yet)
+    });
+  }, 1000);
+}
+
+// Serve the cached adsb2dd data directly (no browser-to-adsb2dd needed)
+app.get('/api/adsb', (req, res) => {
+  res.json(adsbData);
 });
 
 // stash API
