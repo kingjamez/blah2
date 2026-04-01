@@ -50,6 +50,7 @@ process:
 network:
   ip: 0.0.0.0
   ports:
+    map: 3001
     detection: 3002
     track: 3003
 

@@ -36,6 +36,7 @@
 #include <iostream>
 
 Capture *CAPTURE_POINTER = NULL;
+std::unique_ptr<Socket> socket_map;
 std::unique_ptr<Socket> socket_detection;
 std::unique_ptr<Socket> socket_track;
 
@@ -73,15 +74,17 @@ int main(int argc, char **argv)
   tree["capture"]["replay"]["loop"] >> loop;
   tree["capture"]["replay"]["file"] >> replayFile;
 
-  // set up sockets — only detection and track outputs
+  // set up sockets — map, detection, and track outputs
   sleep(2);
-  uint16_t port_detection, port_track;
+  uint16_t port_map, port_detection, port_track;
   std::string ip;
+  tree["network"]["ports"]["map"] >> port_map;
   tree["network"]["ports"]["detection"] >> port_detection;
   tree["network"]["ports"]["track"] >> port_track;
   tree["network"]["ip"] >> ip;
 
   try {
+    socket_map = std::make_unique<Socket>(ip, port_map);
     socket_detection = std::make_unique<Socket>(ip, port_detection);
     socket_track = std::make_unique<Socket>(ip, port_track);
   } catch (const std::exception& e) {
@@ -183,7 +186,7 @@ int main(int argc, char **argv)
   }
 
   // output json
-  std::string detectionJson, jsonTracker;
+  std::string mapJson, detectionJson, jsonTracker;
 
   // run process
   std::thread t2([&]{
@@ -216,6 +219,11 @@ int main(int argc, char **argv)
           // ambiguity process
           map = ambiguity->process(x, y);
           map->set_metrics();
+
+          // output map data
+          mapJson = map->to_json(t0/1000);
+          mapJson = map->delay_bin_to_km(mapJson, fs);
+          socket_map->sendData(mapJson);
 
           // detection process
           if (isDetection)
