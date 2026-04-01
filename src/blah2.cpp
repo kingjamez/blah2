@@ -1,8 +1,8 @@
 /// @file blah2.cpp
 /// @brief A real-time passive radar — headless remote node.
-/// @details Stripped-down build that captures IQ data, runs the DSP
-///          pipeline, and forwards detections + tracks to a remote
-///          aggregator via TCP/JSON.  No web UI, no API middleware.
+/// @details Captures IQ data, runs the full DSP pipeline, and forwards
+///          all six data streams to a remote aggregator via TCP/JSON.
+///          No web UI, no Node.js API middleware.
 /// @author 30hours
 
 #include "capture/Capture.h"
@@ -10,6 +10,7 @@
 #include "data/Map.h"
 #include "data/Detection.h"
 #include "data/Track.h"
+#include "data/meta/Timing.h"
 #include "process/ambiguity/Ambiguity.h"
 #include "process/clutter/WienerHopf.h"
 #include "process/detection/CfarDetector1D.h"
@@ -23,6 +24,7 @@
 #include <ryml/ryml_std.hpp>
 #include <c4/format.hpp>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <getopt.h>
 #include <string>
 #include <vector>
@@ -39,6 +41,9 @@ Capture *CAPTURE_POINTER = NULL;
 std::unique_ptr<Socket> socket_map;
 std::unique_ptr<Socket> socket_detection;
 std::unique_ptr<Socket> socket_track;
+std::unique_ptr<Socket> socket_timestamp;
+std::unique_ptr<Socket> socket_timing;
+std::unique_ptr<Socket> socket_iqdata;
 
 void signal_callback_handler(int signum);
 void getopt_print_help();
@@ -46,6 +51,9 @@ std::string getopt_process(int argc, char **argv);
 std::string ryml_get_file(const char *filename);
 uint64_t current_time_ms();
 uint64_t current_time_us();
+void timing_helper(std::vector<std::string>& timing_name,
+  std::vector<double>& timing_time, std::vector<uint64_t>& time_us,
+  std::string name);
 
 int main(int argc, char **argv)
 {
@@ -65,7 +73,7 @@ int main(int argc, char **argv)
 
   // set up capture
   uint32_t fs, fc;
-  std::string type, path, replayFile;
+  std::string type, replayFile;
   bool state, loop;
   tree["capture"]["fs"] >> fs;
   tree["capture"]["fc"] >> fc;
@@ -74,19 +82,26 @@ int main(int argc, char **argv)
   tree["capture"]["replay"]["loop"] >> loop;
   tree["capture"]["replay"]["file"] >> replayFile;
 
-  // set up sockets — map, detection, and track outputs
+  // set up sockets — all six data streams
   sleep(2);
-  uint16_t port_map, port_detection, port_track;
+  uint16_t port_map, port_detection, port_track,
+           port_timestamp, port_timing, port_iqdata;
   std::string ip;
-  tree["network"]["ports"]["map"] >> port_map;
+  tree["network"]["ports"]["map"]       >> port_map;
   tree["network"]["ports"]["detection"] >> port_detection;
-  tree["network"]["ports"]["track"] >> port_track;
+  tree["network"]["ports"]["track"]     >> port_track;
+  tree["network"]["ports"]["timestamp"] >> port_timestamp;
+  tree["network"]["ports"]["timing"]    >> port_timing;
+  tree["network"]["ports"]["iqdata"]    >> port_iqdata;
   tree["network"]["ip"] >> ip;
 
   try {
-    socket_map = std::make_unique<Socket>(ip, port_map);
+    socket_map       = std::make_unique<Socket>(ip, port_map);
     socket_detection = std::make_unique<Socket>(ip, port_detection);
-    socket_track = std::make_unique<Socket>(ip, port_track);
+    socket_track     = std::make_unique<Socket>(ip, port_track);
+    socket_timestamp = std::make_unique<Socket>(ip, port_timestamp);
+    socket_timing    = std::make_unique<Socket>(ip, port_timing);
+    socket_iqdata    = std::make_unique<Socket>(ip, port_iqdata);
   } catch (const std::exception& e) {
     std::cerr << "Failed to connect to aggregator at " << ip << ": "
               << e.what() << "\n";
@@ -185,8 +200,15 @@ int main(int argc, char **argv)
     isTracker = false;
   }
 
+  // set up timing
+  uint64_t tStart = current_time_ms();
+  Timing *timing = new Timing(tStart);
+  std::vector<std::string> timing_name;
+  std::vector<double> timing_time;
+  std::vector<uint64_t> time;
+
   // output json
-  std::string mapJson, detectionJson, jsonTracker;
+  std::string mapJson, detectionJson, jsonTracker, jsonTiming, jsonIqData;
 
   // run process
   std::thread t2([&]{
@@ -196,7 +218,7 @@ int main(int argc, char **argv)
         buffer2->lock();
         if ((buffer1->get_length() > nSamples) && (buffer2->get_length() > nSamples))
         {
-          uint64_t t0 = current_time_us();
+          time.push_back(current_time_us());
 
           // extract data from buffer
           for (uint32_t i = 0; i < nSamples; i++)
@@ -206,6 +228,7 @@ int main(int argc, char **argv)
           }
           buffer1->unlock();
           buffer2->unlock();
+          timing_helper(timing_name, timing_time, time, "extract_buffer");
 
           // clutter filter
           if (isClutter)
@@ -214,16 +237,13 @@ int main(int argc, char **argv)
             {
               continue;
             }
+            timing_helper(timing_name, timing_time, time, "clutter_filter");
           }
 
           // ambiguity process
           map = ambiguity->process(x, y);
           map->set_metrics();
-
-          // output map data
-          mapJson = map->to_json(t0/1000);
-          mapJson = map->delay_bin_to_km(mapJson, fs);
-          socket_map->sendData(mapJson);
+          timing_helper(timing_name, timing_time, time, "ambiguity_processing");
 
           // detection process
           if (isDetection)
@@ -231,18 +251,29 @@ int main(int argc, char **argv)
             detection1 = cfarDetector1D->process(map);
             detection2 = centroid->process(detection1.get());
             detection = interpolate->process(detection2.get(), map);
+            timing_helper(timing_name, timing_time, time, "detector");
           }
 
           // tracker process
           if (isTracker)
           {
-            track = tracker->process(detection.get(), t0/1000);
+            track = tracker->process(detection.get(), time[0]/1000);
+            timing_helper(timing_name, timing_time, time, "tracker");
           }
+
+          // output IqData metadata
+          jsonIqData = x->to_json(time[0]/1000);
+          socket_iqdata->sendData(jsonIqData);
+
+          // output map data
+          mapJson = map->to_json(time[0]/1000);
+          mapJson = map->delay_bin_to_km(mapJson, fs);
+          socket_map->sendData(mapJson);
 
           // output detection data
           if (isDetection)
           {
-            detectionJson = detection->to_json(t0/1000);
+            detectionJson = detection->to_json(time[0]/1000);
             detectionJson = detection->delay_bin_to_km(detectionJson, fs);
             socket_detection->sendData(detectionJson);
           }
@@ -250,14 +281,30 @@ int main(int argc, char **argv)
           // output tracker data
           if (isTracker)
           {
-            jsonTracker = track->to_json(t0/1000);
+            jsonTracker = track->to_json(time[0]/1000);
             socket_track->sendData(jsonTracker);
           }
 
-          // log CPI time
-          uint64_t t1_us = current_time_us();
-          double delta_ms = (double)(t1_us - t0) / 1000;
+          timing_helper(timing_name, timing_time, time, "output_radar_data");
+
+          // CPI timer
+          time.push_back(current_time_us());
+          double delta_ms = (double)(time.back()-time[0]) / 1000;
+          timing_name.push_back("cpi");
+          timing_time.push_back(delta_ms);
           std::cout << "CPI time (ms): " << delta_ms << "\n";
+
+          // output timing data
+          timing->update(time[0]/1000, timing_time, timing_name);
+          jsonTiming = timing->to_json();
+          socket_timing->sendData(jsonTiming);
+          timing_time.clear();
+          timing_name.clear();
+
+          // output CPI timestamp
+          std::string t0_string = std::to_string(time[0]/1000);
+          socket_timestamp->sendData(t0_string);
+          time.clear();
         }
         else
         {
@@ -364,4 +411,14 @@ uint64_t current_time_us()
 {
   return std::chrono::duration_cast<std::chrono::microseconds>
   (std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void timing_helper(std::vector<std::string>& timing_name,
+  std::vector<double>& timing_time, std::vector<uint64_t>& time_us,
+  std::string name)
+{
+  time_us.push_back(current_time_us());
+  double delta_ms = (double)(time_us.back()-time_us[time_us.size()-2]) / 1000;
+  timing_name.push_back(name);
+  timing_time.push_back(delta_ms);
 }
