@@ -5,53 +5,24 @@
 #include "kraken/Kraken.h"
 #include <iostream>
 #include <thread>
-#include <httplib.h>
 
 // constants
 const std::string Capture::VALID_TYPE[4] = {"RspDuo", "Usrp", "HackRF", "Kraken"};
 
-// constructor
-Capture::Capture(std::string _type, uint32_t _fs, uint32_t _fc, std::string _path)
+// constructor — headless: no path or saveIq needed
+Capture::Capture(std::string _type, uint32_t _fs, uint32_t _fc)
 {
   type = _type;
   fs = _fs;
   fc = _fc;
-  path = _path;
   replay = false;
-  saveIq = false;
 }
 
-void Capture::process(IqData *buffer1, IqData *buffer2, c4::yml::NodeRef config, 
-  std::string ip_capture, uint16_t port_capture)
+void Capture::process(IqData *buffer1, IqData *buffer2, c4::yml::NodeRef config)
 {
   std::cout << "Setting up device " + type << std::endl;
 
   device = factory_source(type, config);
-
-  // capture status thread
-  std::thread t1([&]{
-    while (true)
-    {
-      httplib::Client cli("http://" + ip_capture + ":" 
-        + std::to_string(port_capture));
-      httplib::Result res = cli.Get("/capture");
-
-      // if capture status changed
-      if ((res->body == "true") != saveIq)
-      {
-        saveIq = res->body == "true";
-        if (saveIq)
-        {
-          device->open_file();
-        }
-        else
-        {
-          device->close_file();
-        }
-      }
-      sleep(1);
-    }
-  });
 
   if (!replay)
   {
@@ -62,11 +33,13 @@ void Capture::process(IqData *buffer1, IqData *buffer2, c4::yml::NodeRef config,
   {
     device->replay(buffer1, buffer2, file, loop);
   }
-  t1.join();
 }
 
 std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml::NodeRef config)
 {
+    // IQ saving is disabled in headless mode — pass a static false flag.
+    static bool saveIqDisabled = false;
+
     // SDRplay RSPduo
     if (type == VALID_TYPE[0])
     {
@@ -79,7 +52,7 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
         config["lnaState"] >> lnaState;
         config["dabNotch"] >> dabNotch;
         config["rfNotch"] >> rfNotch;
-        return std::make_unique<RspDuo>(type, fc, fs, path, &saveIq,
+        return std::make_unique<RspDuo>(type, fc, fs, "", &saveIqDisabled,
           agcSetPoint, bandwidthNumber, gainReductionA, gainReductionB, lnaState,
           dabNotch, rfNotch);
     }
@@ -101,7 +74,7 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
         gain.push_back(_gain);
         config["gain"][1] >> _gain;
         gain.push_back(_gain);
-        return std::make_unique<Usrp>(type, fc, fs, path, &saveIq, 
+        return std::make_unique<Usrp>(type, fc, fs, "", &saveIqDisabled,
           address, subdev, antenna, gain);
     }
     // HackRF
@@ -134,7 +107,7 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
       ampEnable.push_back(_ampEnable);
       config["amp_enable"][1] >> _ampEnable;
       ampEnable.push_back(_ampEnable);
-      return std::make_unique<HackRf>(type, fc, fs, path, &saveIq,
+      return std::make_unique<HackRf>(type, fc, fs, "", &saveIqDisabled,
         serial, gainLna, gainVga, ampEnable);
     }
     // Kraken
@@ -147,7 +120,7 @@ std::unique_ptr<Source> Capture::factory_source(const std::string& type, c4::yml
         c4::atof(child.val(), &_gain);
         gain.push_back(static_cast<double>(_gain));
       }
-      return std::make_unique<Kraken>(type, fc, fs, path, &saveIq, gain);
+      return std::make_unique<Kraken>(type, fc, fs, "", &saveIqDisabled, gain);
     }
     // handle unknown type
     std::cerr << "Error: Source type does not exist." << std::endl;

@@ -13,7 +13,6 @@ find_package(Threads REQUIRED)
 find_package(asio  REQUIRED)
 find_path(RAPIDJSON_INCLUDE_DIRS "rapidjson/allocators.h")
 find_package(ryml CONFIG REQUIRED)
-find_package(httplib CONFIG REQUIRED)
 find_package(Armadillo CONFIG REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 
@@ -53,21 +52,18 @@ add_executable(blah2
   src/process/detection/Centroid.cpp
   src/process/detection/Interpolate.cpp
   src/process/tracker/Tracker.cpp
-  src/process/spectrum/SpectrumAnalyser.cpp
   src/process/meta/HammingNumber.cpp
   src/process/utility/Socket.cpp
   src/data/IqData.cpp
   src/data/Map.cpp
   src/data/Detection.cpp
   src/data/Track.cpp
-  src/data/meta/Timing.cpp
 )
 
 target_link_libraries(blah2 PRIVATE 
   Threads::Threads
   asio::asio
   ryml::ryml
-  httplib::httplib
   armadillo
   ${UHD_LIBRARIES}
   fftw3

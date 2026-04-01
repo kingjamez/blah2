@@ -4,8 +4,6 @@ capture:
   device:
     type: "RspDuo"
     agcSetPoint: -20
-    # 0 to disable AGC
-    #bandwidthNumber: 0
     bandwidthNumber: 5
     gainReduction: [50, 45]
     lnaState: 1
@@ -39,7 +37,7 @@ process:
     minDoppler: 15
     nCentroid: 6
   tracker:
-    enable: false
+    enable: true
     initiate:
       M: 3
       N: 5
@@ -47,27 +45,13 @@ process:
     delete: 10
     smooth: "none"
 
+# Point ip at the aggregator's address.
+# Each remote node should use unique port numbers.
 network:
   ip: 0.0.0.0
   ports:
-    api: 3000
-    map: 3001
     detection: 3002
     track: 3003
-    timestamp: 4000
-    timing: 4001
-    iqdata: 4002
-    config: 4003
-
-truth:
-  adsb:
-    enabled: true
-    tar1090: 'adsb.30hours.dev'
-    adsb2dd: 'adsb2dd.30hours.dev'
-  ais:
-    enabled: false
-    ip: 0.0.0.0
-    port: 30001
 
 location:
   rx:
@@ -80,10 +64,3 @@ location:
     longitude: 138.7081
     altitude: 750
     name: "Mount Lofty"
-
-save:
-  iq: true
-  map: false
-  detection: false
-  timing: false
-  path: "/blah2/save/"

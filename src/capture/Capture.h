@@ -1,6 +1,7 @@
 /// @file Capture.h
 /// @class Capture
 /// @brief A class for a generic IQ capture device.
+/// @details Headless variant — no HTTP polling, no IQ file recording.
 /// @author 30hours
 
 #ifndef CAPTURE_H
@@ -10,8 +11,8 @@
 #include <vector>
 #include <memory>
 #include <ryml/ryml.hpp>
-#include <ryml/ryml_std.hpp> // optional header, provided for std:: interop
-#include <c4/format.hpp> // needed for the examples below
+#include <ryml/ryml_std.hpp>
+#include <c4/format.hpp>
 
 #include "data/IqData.h"
 #include "capture/Source.h"
@@ -24,9 +25,6 @@ private:
 
   /// @brief The capture device type.
   std::string type;
-
-  /// @brief True if IQ data to be saved.
-  bool saveIq;
 
   /// @brief True if file replay is enabled.
   bool replay;
@@ -45,9 +43,6 @@ public:
   /// @brief Center frequency (Hz).
   uint32_t fc;
 
-  /// @brief Absolute path to IQ save location.
-  std::string path;
-
   /// @brief Pointer to capture device.
   std::unique_ptr<Source> device;
 
@@ -55,21 +50,17 @@ public:
   /// @param type The capture device type.
   /// @param fs Sampling frequency (Hz).
   /// @param fc Center frequency (Hz).
-  /// @param path Absolute path to IQ save location.
   /// @return The object.
-  Capture(std::string type, uint32_t fs, uint32_t fc, std::string path);
+  Capture(std::string type, uint32_t fs, uint32_t fc);
 
   /// @brief Implement the capture process.
   /// @param buffer1 Buffer for reference samples.
   /// @param buffer2 Buffer for surveillance samples.
   /// @param config Yaml config for device.
-  /// @param ip_capture IP address of capture API.
-  /// @param port_capture Port of capture API.
   /// @return Void.
-  void process(IqData *buffer1, IqData *buffer2, c4::yml::NodeRef config, 
-    std::string ip_capture, uint16_t port_capture);
+  void process(IqData *buffer1, IqData *buffer2, c4::yml::NodeRef config);
 
-  std::unique_ptr<Source> factory_source(const std::string& type, 
+  std::unique_ptr<Source> factory_source(const std::string& type,
     c4::yml::NodeRef config);
 
   /// @brief Set parameters to enable file replay.
