@@ -94,12 +94,15 @@ read -rp " Proceed? [Y/n] " CONFIRM
 # SDR install functions (identical to full blah2 — shared logic)
 # =============================================================================
 _ensure_uhd_ppa() {
-    if ! grep -r "ettusresearch" /etc/apt/sources.list \
-         /etc/apt/sources.list.d/ &>/dev/null; then
-        info "  Adding Ettus Research PPA..."
-        apt-get install -y software-properties-common
-        add-apt-repository -y ppa:ettusresearch/uhd
-        apt-get update
+    # PPAs only work on Ubuntu; Debian/Raspbian use standard repos
+    if [[ -f /etc/os-release ]] && grep -qi 'ubuntu' /etc/os-release; then
+        if ! grep -r "ettusresearch" /etc/apt/sources.list \
+             /etc/apt/sources.list.d/ &>/dev/null; then
+            info "  Adding Ettus Research PPA (Ubuntu detected)..."
+            apt-get install -y software-properties-common
+            add-apt-repository -y ppa:ettusresearch/uhd
+            apt-get update
+        fi
     fi
 }
 
@@ -119,7 +122,7 @@ install_sdrplay() {
 
     local SDRPLAY_ARCH
     if   [[ "${ARCH}" == "x86_64"  ]]; then SDRPLAY_ARCH="amd64"
-    elif [[ "${ARCH}" == "aarch64" ]]; then SDRPLAY_ARCH="aarch64"
+    elif [[ "${ARCH}" == "aarch64" ]]; then SDRPLAY_ARCH="arm64"
     else error "Unsupported architecture: ${ARCH}"; fi
 
     chmod +x "${SDRPLAY_RUN}"
@@ -153,8 +156,7 @@ install_rtlsdr() {
 install_usrp() {
     section "Ettus UHD (USRP)"
     _ensure_uhd_ppa
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        libuhd-dev=4.9.0.0-0ubuntu1~jammy3 uhd-host=4.9.0.0-0ubuntu1~jammy3
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libuhd-dev uhd-host
     uhd_images_downloader
     info "  UHD installed with firmware images."
 }
@@ -162,8 +164,7 @@ install_usrp() {
 install_usrp_stub() {
     section "Ettus UHD library (build dependency — no USRP hardware selected)"
     _ensure_uhd_ppa
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        libuhd-dev=4.9.0.0-0ubuntu1~jammy3 uhd-host=4.9.0.0-0ubuntu1~jammy3
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libuhd-dev uhd-host
     info "  libuhd-dev installed (firmware images skipped)."
 }
 
@@ -190,13 +191,22 @@ VCPKG_PREFIX=$(echo "${REPO_DIR}"/lib/vcpkg_installed/*/share 2>/dev/null | tr '
 [[ -z "${VCPKG_PREFIX}" || ! -d "${VCPKG_PREFIX}" ]] && \
     error "vcpkg_installed not found. Did you run install.sh first?"
 
+# Patch rapidjson GCC 14 bug: GenericStringRef::operator= assigns to const member.
+# rapidjson 1.1.0 has no fix release; patch the installed header in-place.
+RJDOC=$(find "${REPO_DIR}/lib/vcpkg_installed" -path '*/rapidjson/document.h' 2>/dev/null | head -1)
+if [[ -n "${RJDOC}" ]] && grep -q 'length = rhs.length' "${RJDOC}"; then
+    info "Patching rapidjson document.h for GCC 14 compatibility..."
+    sed -i 's/length = rhs.length/const_cast<SizeType\&>(length) = rhs.length/' "${RJDOC}"
+fi
+
 cd "${REPO_DIR}"
 mkdir -p build
 cmake -S . --preset prod-release -DCMAKE_PREFIX_PATH="${VCPKG_PREFIX}"
 cmake --build --preset prod-release -- -j"$(nproc)"
 chmod +x "${REPO_DIR}/bin/blah2"
 
-cp "${REPO_DIR}/bin/blah2" "${INSTALL_DIR}/bin/blah2"
+[[ "${REPO_DIR}/bin/blah2" != "${INSTALL_DIR}/bin/blah2" ]] && \
+    cp "${REPO_DIR}/bin/blah2" "${INSTALL_DIR}/bin/blah2"
 info "  blah2 binary built and deployed to ${INSTALL_DIR}/bin/blah2"
 
 # =============================================================================

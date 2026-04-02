@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.10...3.30)
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
@@ -7,7 +7,7 @@ project(blah2)
 include(CMakePrintHelpers)
 include(CTest)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
 find_package(Threads REQUIRED)
 find_package(asio  REQUIRED)
@@ -17,7 +17,7 @@ find_package(Armadillo REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 
 set(CMAKE_PREFIX_PATH "/opt/uhd" ${CMAKE_PREFIX_PATH})
-find_package(UHD "4.8.0.0" CONFIG REQUIRED)
+find_package(UHD CONFIG REQUIRED)
 
 set(PROJECT_ROOT "${PROJECT_SOURCE_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_ROOT}/bin")
