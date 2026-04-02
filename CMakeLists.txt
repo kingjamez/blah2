@@ -7,7 +7,7 @@ project(blah2)
 include(CMakePrintHelpers)
 include(CTest)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fpermissive")
 
 find_package(Threads REQUIRED)
 find_package(asio  REQUIRED)
