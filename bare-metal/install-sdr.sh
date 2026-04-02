@@ -261,6 +261,14 @@ VCPKG_PREFIX=$(echo "${REPO_DIR}"/lib/vcpkg_installed/*/share 2>/dev/null | tr '
 [[ -z "${VCPKG_PREFIX}" || ! -d "${VCPKG_PREFIX}" ]] && \
     error "vcpkg_installed not found. Did you run install.sh first?"
 
+# Patch rapidjson GCC 14 bug: GenericStringRef::operator= assigns to const member.
+# rapidjson 1.1.0 has no fix release; patch the installed header in-place.
+RJDOC=$(find "${REPO_DIR}/lib/vcpkg_installed" -path '*/rapidjson/document.h' 2>/dev/null | head -1)
+if [[ -n "${RJDOC}" ]] && grep -q 'length = rhs.length' "${RJDOC}"; then
+    info "Patching rapidjson document.h for GCC 14 compatibility..."
+    sed -i 's/length = rhs.length/const_cast<SizeType\&>(length) = rhs.length/' "${RJDOC}"
+fi
+
 info "Running cmake (preset: prod-release)..."
 cd "${REPO_DIR}"
 mkdir -p build
