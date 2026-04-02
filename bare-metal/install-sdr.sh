@@ -101,15 +101,18 @@ read -rp " Proceed? [Y/n] " CONFIRM
 [[ "${CONFIRM,,}" == "n" ]] && exit 0
 
 # =============================================================================
-# HELPER: Add the Ettus UHD PPA (needed for UHD 4.9.0.0 on Ubuntu)
+# HELPER: Add the Ettus UHD PPA on Ubuntu (not needed on Debian/Raspbian)
 # =============================================================================
 _ensure_uhd_ppa() {
-    if ! grep -r "ettusresearch" /etc/apt/sources.list \
-         /etc/apt/sources.list.d/ &>/dev/null; then
-        info "  Adding Ettus Research PPA..."
-        apt-get install -y software-properties-common
-        add-apt-repository -y ppa:ettusresearch/uhd
-        apt-get update
+    # PPAs only work on Ubuntu; Debian/Raspbian use standard repos
+    if [[ -f /etc/os-release ]] && grep -qi 'ubuntu' /etc/os-release; then
+        if ! grep -r "ettusresearch" /etc/apt/sources.list \
+             /etc/apt/sources.list.d/ &>/dev/null; then
+            info "  Adding Ettus Research PPA (Ubuntu detected)..."
+            apt-get install -y software-properties-common
+            add-apt-repository -y ppa:ettusresearch/uhd
+            apt-get update
+        fi
     fi
 }
 
@@ -220,10 +223,8 @@ install_rtlsdr_stub() {
 install_usrp() {
     section "Ettus UHD (USRP)"
     _ensure_uhd_ppa
-    info "Installing libuhd-dev and uhd-host (pinned to 4.9.0.0)..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        libuhd-dev=4.9.0.0-0ubuntu1~jammy3 \
-        uhd-host=4.9.0.0-0ubuntu1~jammy3
+    info "Installing libuhd-dev and uhd-host..."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libuhd-dev uhd-host
     info "Downloading UHD FPGA/firmware images (~500 MB)..."
     uhd_images_downloader
     info "  UHD installed with firmware images."
@@ -236,9 +237,7 @@ install_usrp_stub() {
     section "Ettus UHD library (build dependency — no USRP hardware selected)"
     _ensure_uhd_ppa
     info "Installing libuhd-dev (required for compilation, no firmware download)..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        libuhd-dev=4.9.0.0-0ubuntu1~jammy3 \
-        uhd-host=4.9.0.0-0ubuntu1~jammy3
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libuhd-dev uhd-host
     info "  libuhd-dev installed (firmware images skipped)."
 }
 
