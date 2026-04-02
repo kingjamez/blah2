@@ -52,6 +52,7 @@ DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
     libfftw3-dev libfftw3-bin \
     libusb-dev libusb-1.0-0-dev \
     liblapack-dev libblas-dev \
+    libarmadillo-dev libopenblas-dev \
     rsync \
     nginx \
     nodejs npm
