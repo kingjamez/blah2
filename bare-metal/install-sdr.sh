@@ -149,7 +149,7 @@ install_sdrplay() {
     # Map uname -m to the subdirectory name inside the .run archive
     local SDRPLAY_ARCH
     if   [[ "${ARCH}" == "x86_64"  ]]; then SDRPLAY_ARCH="amd64"
-    elif [[ "${ARCH}" == "aarch64" ]]; then SDRPLAY_ARCH="aarch64"
+    elif [[ "${ARCH}" == "aarch64" ]]; then SDRPLAY_ARCH="arm64"
     else error "Unsupported architecture for SDRplay: ${ARCH}"; fi
 
     info "Extracting SDRplay API ${VER}..."
