@@ -279,8 +279,9 @@ cmake -S . --preset prod-release \
 cmake --build --preset prod-release -- -j"$(nproc)"
 chmod +x "${REPO_DIR}/bin/blah2"
 
-# Deploy the freshly built binary to the install location
-cp "${REPO_DIR}/bin/blah2" "${INSTALL_DIR}/bin/blah2"
+# Deploy the freshly built binary to the install location (skip if same path)
+[[ "${REPO_DIR}/bin/blah2" != "${INSTALL_DIR}/bin/blah2" ]] && \
+    cp "${REPO_DIR}/bin/blah2" "${INSTALL_DIR}/bin/blah2"
 info "  blah2 binary built and deployed to ${INSTALL_DIR}/bin/blah2"
 
 # =============================================================================
