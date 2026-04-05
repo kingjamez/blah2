@@ -13,6 +13,7 @@
 #include "process/detection/CfarDetector1D.h"
 #include "process/detection/Centroid.h"
 #include "process/detection/Interpolate.h"
+#include "process/detection/CvDetector.h"
 #include "process/spectrum/SpectrumAnalyser.h"
 #include "process/tracker/Tracker.h"
 #include "process/utility/Socket.h"
@@ -34,6 +35,7 @@
 #include <atomic>
 #include <memory>
 #include <iostream>
+#include <algorithm>
 
 Capture *CAPTURE_POINTER = NULL;
 std::unique_ptr<Socket> socket_map;
@@ -182,6 +184,62 @@ int main(int argc, char **argv)
   tree["process"]["detection"]["nCentroid"] >> nCentroid;
   Centroid *centroid = new Centroid(nCentroid, nCentroid, 1/tCpi);
 
+  // set up CV detector (ML-based, optional)
+  std::string detectionMethod = "cfar";
+  CvDetector *cvDetector = nullptr;
+  if (tree["process"]["detection"].has_child("method"))
+  {
+    tree["process"]["detection"]["method"] >> detectionMethod;
+  }
+  if (detectionMethod == "cv")
+  {
+    std::string cvModelPath = "models/auto";
+    double cvConfidence = 0.5;
+    int cvInputHeight = 256;
+    int cvInputWidth = 256;
+    if (tree["process"]["detection"].has_child("cv"))
+    {
+      if (tree["process"]["detection"]["cv"].has_child("model_path"))
+        tree["process"]["detection"]["cv"]["model_path"] >> cvModelPath;
+      if (tree["process"]["detection"]["cv"].has_child("confidence_threshold"))
+        tree["process"]["detection"]["cv"]["confidence_threshold"] >> cvConfidence;
+      if (tree["process"]["detection"]["cv"].has_child("input_height"))
+        tree["process"]["detection"]["cv"]["input_height"] >> cvInputHeight;
+      if (tree["process"]["detection"]["cv"].has_child("input_width"))
+        tree["process"]["detection"]["cv"]["input_width"] >> cvInputWidth;
+    }
+
+    // Auto model selection: build path from capture config
+    if (cvModelPath == "models/auto")
+    {
+      std::string deviceType;
+      tree["capture"]["device"]["type"] >> deviceType;
+      // Lowercase the device type
+      std::transform(deviceType.begin(), deviceType.end(), deviceType.begin(), ::tolower);
+      // Determine illuminator from fc
+      std::string illuminator = (fc >= 88000000 && fc <= 108000000) ? "fm" : "dtv";
+      // Build model filename
+      std::string fsStr = std::to_string(static_cast<int>(fs / 1000000));
+      cvModelPath = "models/centernet_" + illuminator + "_" + deviceType + "_"
+                    + fsStr + "mhz_v1.onnx";
+    }
+
+    std::cout << "CvDetector: method=cv, model=" << cvModelPath
+              << ", confidence=" << cvConfidence << std::endl;
+
+    cvDetector = new CvDetector(cvModelPath, cvConfidence,
+                                 cvInputHeight, cvInputWidth,
+                                 minDelay, minDoppler);
+
+    if (!cvDetector->ready())
+    {
+      std::cerr << "CvDetector: Model failed to load. Falling back to CFAR." << std::endl;
+      detectionMethod = "cfar";
+      delete cvDetector;
+      cvDetector = nullptr;
+    }
+  }
+
   // set up process tracker
   uint8_t m, n, nDelete;
   double maxAcc, rangeRes, lambda;
@@ -282,9 +340,18 @@ int main(int argc, char **argv)
           // detection process
           if (isDetection)
           {
-            detection1 = cfarDetector1D->process(map);
-            detection2 = centroid->process(detection1.get());
-            detection = interpolate->process(detection2.get(), map);
+            if (detectionMethod == "cv" && cvDetector != nullptr)
+            {
+              // ML-based detection (CenterNet via ONNX Runtime)
+              detection = cvDetector->process(map);
+            }
+            else
+            {
+              // Legacy CFAR detection pipeline
+              detection1 = cfarDetector1D->process(map);
+              detection2 = centroid->process(detection1.get());
+              detection = interpolate->process(detection2.get(), map);
+            }
             timing_helper(timing_name, timing_time, time, "detector");
           }
 

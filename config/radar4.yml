@@ -30,12 +30,18 @@ process:
     delayMax: 400
   detection:
     enable: true
+    method: "cfar"              # "cfar" for legacy, "cv" for ML model
     pfa: 0.00001
     nGuard: 2
     nTrain: 6
     minDelay: 5
     minDoppler: 15
     nCentroid: 6
+    cv:                         # ML detection settings (only used when method: "cv")
+      model_path: "models/auto" # "auto" selects model from capture config, or explicit .onnx path
+      confidence_threshold: 0.5
+      input_height: 256
+      input_width: 256
   tracker:
     enable: true
     initiate:

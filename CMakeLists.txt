@@ -20,6 +20,26 @@ find_package(Catch2 CONFIG REQUIRED)
 set(CMAKE_PREFIX_PATH "/opt/uhd" ${CMAKE_PREFIX_PATH})
 find_package(UHD CONFIG REQUIRED)
 
+# Optional: ONNX Runtime for ML-based CV detection (CvDetector)
+# Install ONNX Runtime C++ from https://github.com/microsoft/onnxruntime/releases
+# Set ONNXRUNTIME_ROOT to the installation path, e.g.:
+#   cmake -DUSE_CVDETECTOR=ON -DONNXRUNTIME_ROOT=/opt/onnxruntime ..
+option(USE_CVDETECTOR "Enable ML-based CV detection (requires ONNX Runtime)" OFF)
+
+if(USE_CVDETECTOR)
+  if(NOT DEFINED ONNXRUNTIME_ROOT)
+    set(ONNXRUNTIME_ROOT "/opt/onnxruntime" CACHE PATH "ONNX Runtime installation root")
+  endif()
+  if(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
+    message(STATUS "ONNX Runtime found at ${ONNXRUNTIME_ROOT}")
+    set(ONNXRUNTIME_INCLUDE_DIR "${ONNXRUNTIME_ROOT}/include")
+    set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
+  else()
+    message(WARNING "ONNX Runtime not found at ${ONNXRUNTIME_ROOT}. "
+                    "CvDetector will compile but ML inference will be unavailable.")
+  endif()
+endif()
+
 set(PROJECT_ROOT "${PROJECT_SOURCE_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_ROOT}/bin")
 set(PROJECT_BINARY_TEST_DIR "${PROJECT_ROOT}/bin/test")
@@ -52,6 +72,7 @@ add_executable(blah2
   src/process/detection/CfarDetector1D.cpp
   src/process/detection/Centroid.cpp
   src/process/detection/Interpolate.cpp
+  src/process/detection/CvDetector.cpp
   src/process/tracker/Tracker.cpp
   src/process/spectrum/SpectrumAnalyser.cpp
   src/process/meta/HammingNumber.cpp
@@ -77,6 +98,16 @@ target_link_libraries(blah2 PRIVATE
   rtlsdr
 )
 target_include_directories(blah2 PRIVATE RAPIDJSON_INCLUDE_DIRS "rapidjson/allocators.h")
+
+# CV Detector: conditional ONNX Runtime support
+if(USE_CVDETECTOR)
+  target_compile_definitions(blah2 PRIVATE USE_CVDETECTOR)
+  if(DEFINED ONNXRUNTIME_INCLUDE_DIR)
+    target_include_directories(blah2 PRIVATE ${ONNXRUNTIME_INCLUDE_DIR})
+    target_link_directories(blah2 PRIVATE ${ONNXRUNTIME_LIB_DIR})
+    target_link_libraries(blah2 PRIVATE onnxruntime)
+  endif()
+endif()
 
 # unit tests
 add_executable(testAmbiguity
