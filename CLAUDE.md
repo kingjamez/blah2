@@ -30,7 +30,7 @@ api/                    Node.js API middleware (server.js)
 html/                   Web frontend (vanilla JS, no build step)
   js/                   plot_map.js, plot_detection.js, etc.
 config/                 YAML config files (SDR params, processing, network, truth)
-bare-metal/             Install scripts for non-Docker deployment
+bare-metal/             Install scripts for bare-metal deployment
   install.sh            Step 1: system packages, vcpkg, Node.js, nginx, systemd units
   install-sdr.sh        Step 2: SDR drivers, cmake build, binary deploy to /opt/blah2
   start-blah2.sh        Start services (blah2-api then blah2)
@@ -40,16 +40,14 @@ lib/                    vcpkg manifest and SDRplay API installer
 test/                   Catch2 unit tests
 CMakeLists.txt          Build system (vcpkg toolchain via CMakePresets.json)
 CMakePresets.json       Build presets: dev-debug, dev-release, prod-release
-Dockerfile              Docker build (Ubuntu 22.04 base)
-docker-compose.yml      Docker deployment (blah2 + api + web)
 ```
 
 ## Branches
 
 | Branch | Based on | Purpose | Status |
 |---|---|---|---|
-| `main` | — | Docker-based deployment, upstream PRs | Stable |
-| `feature/baremetal` | main | Bare-metal (no Docker) deployment for Pi/Ubuntu | Active, deployed on Jim's Pi |
+| `main` | — | Bare-metal deployment, upstream PRs | Stable |
+| `feature/baremetal` | main | Bare-metal deployment for Pi/Ubuntu | Active, deployed on Jim's Pi |
 | `feature/adsb-overlay` | main | Server-side ADS-B truth overlay on radar display | Merged into Jim's Pi via cherry-pick |
 | `feature/cv-detection` | baremetal | CenterNet ML detector as CFAR alternative | Built, not yet compiled/tested |
 | `feature/headless` | main | Stripped-down remote sensor node (no web UI) | Experimental |
@@ -60,13 +58,7 @@ Jim's Pi currently runs `feature/baremetal` with `40ed151` (adsb-overlay) cherry
 
 ## Build Instructions
 
-### Docker (main branch)
-```bash
-sudo docker network create blah2
-sudo docker compose up -d --build
-```
-
-### Bare-metal (feature/baremetal)
+### Bare-metal
 ```bash
 git checkout feature/baremetal
 sudo ./bare-metal/install.sh      # packages, vcpkg, Node.js, nginx, systemd
