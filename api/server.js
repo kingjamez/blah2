@@ -1,6 +1,8 @@
 const express = require('express');
 const net = require("net");
 const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 const yaml = require('js-yaml');
 const dns = require('dns');
 const http_client = require('http');
@@ -157,6 +159,56 @@ app.get('/capture/toggle', (req, res) => {
   capture = !capture;
   res.send('{}');
 });
+
+// save status: recording state, file size, disk usage
+app.get('/api/save', (req, res) => {
+  const savePath = config.save.path || '/blah2/save/';
+  const saveIq = config.save.iq || false;
+  const result = {
+    active: capture,
+    configured: saveIq,
+    path: savePath,
+    file: null,
+    fileSize: 0,
+    disk: { total: 0, used: 0, free: 0, percent: 0 }
+  };
+
+  // find the most recent .iq file in the save directory
+  try {
+    const dir = savePath.endsWith('/') ? savePath : savePath + '/';
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir)
+        .filter(f => f.endsWith('.iq'))
+        .map(f => ({
+          name: f,
+          path: path.join(dir, f),
+          mtime: fs.statSync(path.join(dir, f)).mtimeMs,
+          size: fs.statSync(path.join(dir, f)).size
+        }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (files.length > 0 && capture) {
+        result.file = files[0].name;
+        result.fileSize = files[0].size;
+      }
+    }
+  } catch (e) { /* ignore file errors */ }
+
+  // get disk usage for the save path partition
+  try {
+    const df = execSync(`df -B1 "${savePath}" 2>/dev/null | tail -1`,
+      { encoding: 'utf8', timeout: 2000 });
+    const parts = df.trim().split(/\s+/);
+    if (parts.length >= 5) {
+      result.disk.total = parseInt(parts[1]) || 0;
+      result.disk.used = parseInt(parts[2]) || 0;
+      result.disk.free = parseInt(parts[3]) || 0;
+      result.disk.percent = parseInt(parts[4]) || 0;
+    }
+  } catch (e) { /* ignore df errors */ }
+
+  res.json(result);
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`Running on http://${HOST}:${PORT}`);
 });
