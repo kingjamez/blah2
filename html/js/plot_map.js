@@ -11,6 +11,7 @@ var urlDetection;
 var urlAdsb;
 var urlAdsbLink;
 var urlConfig;
+var urlSave;
 if (isLocalHost) {
   urlTimestamp = '//' + host + ':3000/api/timestamp';
 } else {
@@ -35,6 +36,11 @@ if (isLocalHost) {
   urlConfig = '//' + host + ':3000/api/config';
 } else {
   urlConfig = '//' + host + '/api/config';
+}
+if (isLocalHost) {
+  urlSave = '//' + host + ':3000/api/save';
+} else {
+  urlSave = '//' + host + '/api/save';
 }
 
 // get truth flag
@@ -112,6 +118,59 @@ var detection = [];
 var adsb = {};
 
 Plotly.newPlot('data', data, layout, config);
+
+// save status indicator
+var saveIndicator = document.createElement('div');
+saveIndicator.id = 'save-indicator';
+saveIndicator.style.cssText = 'position:fixed;top:10px;right:10px;z-index:1000;' +
+  'padding:8px 14px;border-radius:6px;font-family:monospace;font-size:13px;' +
+  'display:none;pointer-events:none;line-height:1.5;min-width:180px;';
+document.body.appendChild(saveIndicator);
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+}
+
+function updateSaveIndicator() {
+  $.getJSON(urlSave, function () { })
+    .done(function (data) {
+      if (!data.active) {
+        saveIndicator.style.display = 'none';
+        return;
+      }
+      saveIndicator.style.display = 'block';
+      var diskPct = data.disk.percent || 0;
+      // color based on disk usage: green < 70%, yellow 70-90%, red > 90%
+      var bgColor, borderColor;
+      if (diskPct >= 90) {
+        bgColor = 'rgba(220,53,69,0.9)'; borderColor = '#dc3545';
+      } else if (diskPct >= 70) {
+        bgColor = 'rgba(255,193,7,0.9)'; borderColor = '#ffc107';
+      } else {
+        bgColor = 'rgba(25,135,84,0.9)'; borderColor = '#198754';
+      }
+      saveIndicator.style.background = bgColor;
+      saveIndicator.style.border = '2px solid ' + borderColor;
+      saveIndicator.style.color = '#fff';
+      saveIndicator.style.textShadow = '0 1px 2px rgba(0,0,0,0.3)';
+
+      var html = '<b>\u23FA REC</b>';
+      if (data.file) {
+        html += '<br>File: ' + formatBytes(data.fileSize);
+      }
+      html += '<br>Disk: ' + formatBytes(data.disk.free) + ' free (' + diskPct + '% used)';
+      saveIndicator.innerHTML = html;
+    })
+    .fail(function () {
+      saveIndicator.style.display = 'none';
+    });
+}
+// poll save status every 2 seconds (no need for 100ms)
+window.setInterval(updateSaveIndicator, 2000);
+updateSaveIndicator();
 
 // callback function
 var intervalId = window.setInterval(function () {
